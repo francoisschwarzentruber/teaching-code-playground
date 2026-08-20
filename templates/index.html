@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>C in Browser</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-size: 24px;
         }
 
         body {
@@ -16,18 +19,10 @@
             background-color: #1a1a2e;
             color: #e0e0e0;
             min-height: 100vh;
-            padding: 2rem;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 2rem;
-            font-size: 2rem;
-            color: #00d2ff;
+            padding: 1rem;
         }
 
         .container {
-            max-width: 900px;
             margin: 0 auto;
         }
 
@@ -43,13 +38,29 @@
             color: #b0b0b0;
         }
 
+        #code-editor {
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 300px;
+        }
+
+        .CodeMirror {
+            height: 300px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        
+        
         textarea {
             width: 100%;
-            height: 300px;
+            height: 200px;
             padding: 1rem;
             border: 1px solid #333;
             border-radius: 8px;
-            background-color: #0f0f23;
+            background-color: #0a0a1a;
             color: #e0e0e0;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 14px;
@@ -61,11 +72,6 @@
 
         textarea:focus {
             border-color: #00d2ff;
-        }
-
-        #output {
-            height: 200px;
-            background-color: #0a0a1a;
         }
 
         .controls {
@@ -116,16 +122,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>C in Browser</h1>
-
         <div class="section">
-            <label for="code">Write your C code:</label>
-            <textarea id="code" placeholder="#include &lt;stdio.h&gt;&#10;&#10;int main() {&#10;    printf(&quot;Hello, World!\n&quot;);&#10;    return 0;&#10;}" spellcheck="false">#include &lt;stdio.h&gt;
-
-int main() {
-    printf("Hello, World!\n");
-    return 0;
-}</textarea>
+            <div id="code-editor"></div>
         </div>
 
         <div class="controls">
@@ -139,9 +137,23 @@ int main() {
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
     <script>
+        const editor = CodeMirror(document.getElementById('code-editor'), {
+            value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
+            mode: 'text/x-csrc',
+            theme: 'material-darker',
+            lineNumbers: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+        });
+
         async function runCode() {
-            const code = document.getElementById('code').value;
+            const code = editor.getValue();
             const output = document.getElementById('output');
             const status = document.getElementById('status');
             const btn = document.getElementById('runBtn');
@@ -175,11 +187,9 @@ int main() {
             }
         }
 
-        document.getElementById('code').addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault();
-                runCode();
-            }
+        editor.setOption('extraKeys', {
+            'Ctrl-Enter': () => runCode(),
+            'Cmd-Enter': () => runCode(),
         });
     </script>
 </body>
