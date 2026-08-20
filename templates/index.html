@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C in Browser</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2rem;
+            color: #00d2ff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #b0b0b0;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 1rem;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #0f0f23;
+            color: #e0e0e0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: #00d2ff;
+        }
+
+        #output {
+            height: 200px;
+            background-color: #0a0a1a;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin: 1.5rem 0;
+        }
+
+        button {
+            padding: 0.75rem 2.5rem;
+            border: none;
+            border-radius: 8px;
+            background-color: #00d2ff;
+            color: #1a1a2e;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #00b8d9;
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            background-color: #444;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error {
+            color: #ff6b6b;
+        }
+
+        #status {
+            text-align: center;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            color: #888;
+            min-height: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>C in Browser</h1>
+
+        <div class="section">
+            <label for="code">Write your C code:</label>
+            <textarea id="code" placeholder="#include &lt;stdio.h&gt;&#10;&#10;int main() {&#10;    printf(&quot;Hello, World!\n&quot;);&#10;    return 0;&#10;}" spellcheck="false">#include &lt;stdio.h&gt;
+
+int main() {
+    printf("Hello, World!\n");
+    return 0;
+}</textarea>
+        </div>
+
+        <div class="controls">
+            <button id="runBtn" onclick="runCode()">Run</button>
+        </div>
+        <div id="status"></div>
+
+        <div class="section">
+            <label for="output">Output:</label>
+            <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        async function runCode() {
+            const code = document.getElementById('code').value;
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+            const btn = document.getElementById('runBtn');
+
+            btn.disabled = true;
+            status.textContent = 'Compiling and running...';
+            output.value = '';
+
+            try {
+                const response = await fetch('/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+
+                const data = await response.json();
+
+                let result = '';
+                if (data.output) result += data.output;
+                if (data.error) result += (result ? '\n' : '') + data.error;
+
+                output.value = result || '(no output)';
+                output.classList.toggle('error', !!data.error && !data.output);
+                status.textContent = data.error ? 'Error occurred' : 'Finished';
+            } catch (err) {
+                output.value = 'Request failed: ' + err.message;
+                output.classList.add('error');
+                status.textContent = 'Request failed';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('code').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runCode();
+            }
+        });
+    </script>
+</body>
+</html>
