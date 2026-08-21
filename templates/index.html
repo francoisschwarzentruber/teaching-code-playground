@@ -31,13 +31,14 @@
             margin: 0 auto;
             flex: 1;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             width: 100%;
             min-height: 0;
         }
 
         .section {
             margin-bottom: 0;
+            position:relative;
         }
 
         .section.grow {
@@ -108,6 +109,12 @@
             transition: background-color 0.2s, transform 0.1s;
         }
 
+        #runBtn {
+            position: absolute;
+            right: 0px;
+            top: 0px;
+        }
+
         button:hover {
             background-color: #00b8d9;
         }
@@ -141,15 +148,9 @@
     <div class="container">
         <div class="section grow">
             <div id="code-editor"></div>
-        </div>
-
-        <div class="controls">
             <button id="runBtn" onclick="runCode()">Run</button>
         </div>
-        <div id="status"></div>
-
         <div class="section">
-            <label for="output">Output:</label>
             <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
         </div>
     </div>
@@ -160,7 +161,7 @@
         const editor = CodeMirror(document.getElementById('code-editor'), {
             value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
             mode: 'text/x-csrc',
-            theme: 'material-darker',
+            theme: 'matecolumnrial-darker',
             lineNumbers: true,
             indentUnit: 4,
             tabSize: 4,
@@ -172,11 +173,11 @@
         async function runCode() {
             const code = editor.getValue();
             const output = document.getElementById('output');
-            const status = document.getElementById('status');
+        //    const status = document.getElementById('status');
             const btn = document.getElementById('runBtn');
 
             btn.disabled = true;
-            status.textContent = 'Compiling and running...';
+          //  status.textContent = 'Compiling and running...';
             output.value = '';
 
             try {
@@ -194,11 +195,11 @@
 
                 output.value = result || '(no output)';
                 output.classList.toggle('error', !!data.error && !data.output);
-                status.textContent = data.error ? 'Error occurred' : 'Finished';
+               // status.textContent = data.error ? 'Error occurred' : 'Finished';
             } catch (err) {
                 output.value = 'Request failed: ' + err.message;
                 output.classList.add('error');
-                status.textContent = 'Request failed';
+             //   status.textContent = 'Request failed';
             } finally {
                 btn.disabled = false;
             }
