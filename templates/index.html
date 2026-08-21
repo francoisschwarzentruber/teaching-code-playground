@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>C in Browser</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
     <style>
         * {
             margin: 0;
@@ -18,16 +20,31 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1a1a2e;
             color: #e0e0e0;
-            min-height: 100vh;
+            height: 100vh;
             padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .container {
             margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            min-height: 0;
         }
 
         .section {
-            margin-bottom: 1.5rem;
+            margin-bottom: 0;
+        }
+
+        .section.grow {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         label {
@@ -42,30 +59,29 @@
             border: 1px solid #333;
             border-radius: 8px;
             overflow: hidden;
-            height: 300px;
+            flex: 1;
+            min-height: 0;
         }
 
         .CodeMirror {
-            height: 300px;
+            height: 100%;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 14px;
             line-height: 1.5;
+            filter: brightness(1.5);
         }
 
-        
-        
         textarea {
             width: 100%;
-            height: 200px;
+            height: 150px;
             padding: 1rem;
             border: 1px solid #333;
             border-radius: 8px;
             background-color: #0a0a1a;
             color: #e0e0e0;
             font-family: 'Fira Code', 'Courier New', monospace;
-            font-size: 14px;
             line-height: 1.5;
-            resize: vertical;
+            resize: none;
             outline: none;
             transition: border-color 0.2s;
         }
@@ -77,7 +93,7 @@
         .controls {
             display: flex;
             justify-content: center;
-            margin: 1.5rem 0;
+            padding: 0.5rem 0;
         }
 
         button {
@@ -120,9 +136,10 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <div class="section">
+        <div class="section grow">
             <div id="code-editor"></div>
         </div>
 
@@ -193,4 +210,5 @@
         });
     </script>
 </body>
+
 </html>
