@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -38,7 +39,7 @@
 
         .section {
             margin-bottom: 0;
-            position:relative;
+            position: relative;
         }
 
         .section.grow {
@@ -74,9 +75,9 @@
 
         textarea {
             width: 100%;
-            height: 150px;
+            height: 100%;
             padding: 1rem;
-            border: 1px solid #333;
+            border: 2px solid #a7a7a7;
             border-radius: 8px;
             background-color: #0a0a1a;
             color: #e0e0e0;
@@ -146,11 +147,11 @@
 
 <body>
     <div class="container">
-        <div class="section grow">
+        <div id="code-panel" class="section grow">
             <div id="code-editor"></div>
-            <button id="runBtn" onclick="runCode()">▶</button>
+            <button id="runBtn" onclick="runCode()" title="Compile and run">▶</button>
         </div>
-        <div class="section">
+        <div id="output-panel" class="section">
             <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
         </div>
     </div>
@@ -173,11 +174,11 @@
         async function runCode() {
             const code = editor.getValue();
             const output = document.getElementById('output');
-        //    const status = document.getElementById('status');
+            //    const status = document.getElementById('status');
             const btn = document.getElementById('runBtn');
 
             btn.disabled = true;
-          //  status.textContent = 'Compiling and running...';
+            //  status.textContent = 'Compiling and running...';
             output.value = '';
 
             try {
@@ -195,11 +196,11 @@
 
                 output.value = result || '(no output)';
                 output.classList.toggle('error', !!data.error && !data.output);
-               // status.textContent = data.error ? 'Error occurred' : 'Finished';
+                // status.textContent = data.error ? 'Error occurred' : 'Finished';
             } catch (err) {
                 output.value = 'Request failed: ' + err.message;
                 output.classList.add('error');
-             //   status.textContent = 'Request failed';
+                //   status.textContent = 'Request failed';
             } finally {
                 btn.disabled = false;
             }
@@ -208,6 +209,15 @@
         editor.setOption('extraKeys', {
             'Ctrl-Enter': () => runCode(),
             'Cmd-Enter': () => runCode(),
+        });
+
+
+        Split(['#code-panel', '#output-panel'], {
+            sizes: [50, 50],
+            minSize: 150,
+            cursor: 'col-resize',
+            direction: 'horizontal',
+            gutterSize: 6
         });
     </script>
 </body>
