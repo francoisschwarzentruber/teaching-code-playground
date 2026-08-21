@@ -98,10 +98,10 @@
         }
 
         button {
-            padding: 0.75rem 2.5rem;
+            padding: 0.3rem 0.5rem;
             border: none;
             border-radius: 8px;
-            background-color: #00d2ff;
+            background-color: #00ffd2;
             color: #1a1a2e;
             font-size: 1.1rem;
             font-weight: 700;
@@ -148,7 +148,7 @@
     <div class="container">
         <div class="section grow">
             <div id="code-editor"></div>
-            <button id="runBtn" onclick="runCode()">Run</button>
+            <button id="runBtn" onclick="runCode()">▶</button>
         </div>
         <div class="section">
             <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
@@ -161,7 +161,7 @@
         const editor = CodeMirror(document.getElementById('code-editor'), {
             value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
             mode: 'text/x-csrc',
-            theme: 'matecolumnrial-darker',
+            theme: 'material-darker',
             lineNumbers: true,
             indentUnit: 4,
             tabSize: 4,
