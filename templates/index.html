@@ -5,9 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cinbrowser</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
     <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
     <style>
@@ -70,12 +67,35 @@
             min-height: 0;
         }
 
-        .CodeMirror {
+        .cm-editor {
             height: 100%;
             font-family: 'Fira Code', 'Courier New', monospace;
             font-size: 14px;
+        }
+
+        .cm-editor .cm-scroller {
             line-height: 1.5;
-            filter: brightness(1.5);
+        }
+
+        .cm-editor .cm-content {
+            caret-color: #00ffd2;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .cm-editor .cm-cursor {
+            border-left-color: #00ffd2;
+            border-left-width: 2px;
+        }
+
+        .cm-editor .cm-selectionBackground,
+        .cm-editor.cm-focused .cm-selectionBackground {
+            background-color: rgba(0, 180, 255, 0.55) !important;
+        }
+
+        .cm-editor .cm-selectionMatch,
+        .cm-editor.cm-focused .cm-selectionMatch {
+            background-color: rgba(0, 180, 255, 0.30) !important;
         }
 
         .controls {
@@ -148,14 +168,16 @@
             cursor: text;
         }
 
-        .xterm-screen {
-            filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.8));
-            box-shadow: inset 0 0 60px rgba(251, 191, 36, 0.3)
-        }
-
         .xterm {
             cursor: text;
         }
+
+
+        .xterm-screen {
+           filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.8));
+            box-shadow: inset 0 0 60px rgba(251, 191, 36, 0.3)
+        }
+
 
 
         #appTitle {
@@ -195,44 +217,100 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/haskell/haskell.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/scheme/scheme.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
-    <script>
-        // Supported languages, keyed by the id sent to the backend.
-        // To add a new language, add an entry here (matching the app.py LANGUAGES map).
-        const LANGUAGES = {
-            c: { label: 'C', mode: 'text/x-csrc' },
-            cpp: { label: 'C++', mode: 'text/x-c++src' },
-            rust: { label: 'Rust', mode: 'text/x-rust' },
-            java: { label: 'Java', mode: 'text/x-java' },
-            lisp: { label: 'Lisp', mode: 'text/x-scheme' },
-            haskell: { label: 'Haskell', mode: 'text/x-haskell' },
-            python: { label: 'Python', mode: 'text/x-python' },
+    <script type="module">
+        // CodeMirror 6 editor.
+        // Note: pin codemirror@6.0.2, the CodeMirror 6 meta-package. The bare
+        // `codemirror@6` range also matches codemirror@6.65.7, which is a
+        // legacy CodeMirror 5 release and has no ESM `basicSetup` export.
+        import { basicSetup } from 'https://esm.sh/codemirror@6.0.2';
+        import { EditorView } from 'https://esm.sh/@codemirror/view@6';
+        import { EditorState, Compartment } from 'https://esm.sh/@codemirror/state@6';
+        import { indentUnit, StreamLanguage, LanguageSupport } from 'https://esm.sh/@codemirror/language@6';
+        import { cpp } from 'https://esm.sh/@codemirror/lang-cpp@6';
+        import { python } from 'https://esm.sh/@codemirror/lang-python@6';
+        import { rust } from 'https://esm.sh/@codemirror/lang-rust@6';
+        import { java } from 'https://esm.sh/@codemirror/lang-java@6';
+        import { haskell as haskellMode } from 'https://esm.sh/@codemirror/legacy-modes@6/mode/haskell';
+        import { scheme as schemeMode } from 'https://esm.sh/@codemirror/legacy-modes@6/mode/scheme';
+        import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6';
+
+        // Language supports for each language id sent to the backend.
+        // Note: C uses the C++ parser (lang-cpp has a single grammar for both).
+        // Lisp uses the Scheme legacy mode (the backend runs Guile/Scheme).
+        const SUPPORT = {
+            c: () => cpp(),
+            cpp: () => cpp(),
+            rust: () => rust(),
+            java: () => java(),
+            lisp: () => new LanguageSupport(StreamLanguage.define(schemeMode)),
+            haskell: () => new LanguageSupport(StreamLanguage.define(haskellMode)),
+            python: () => python(),
         };
+
+        // Same labels / ids as the backend (app.py LANGUAGES map).
+        const LANGUAGES = {
+            c: { label: 'C' },
+            cpp: { label: 'C++' },
+            rust: { label: 'Rust' },
+            java: { label: 'Java' },
+            lisp: { label: 'Lisp' },
+            haskell: { label: 'Haskell' },
+            python: { label: 'Python' },
+        };
+
+        // CodeMirror 5-style mime name per language, kept for the compat shim below.
+        const CM_MODE_MIME = {
+            c: 'text/x-csrc',
+            cpp: 'text/x-c++src',
+            rust: 'text/x-rust',
+            java: 'text/x-java',
+            lisp: 'text/x-scheme',
+            haskell: 'text/x-haskell',
+            python: 'text/x-python',
+        };
+
         let currentLanguage = 'c';
+        let detectTimer = null;
         let currentJob = null;
         let pollTimer = null;
         let running = false;
 
-        const editor = CodeMirror(document.getElementById('code-editor'), {
-            value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
-            mode: 'text/x-csrc',
-            theme: 'material-darker',
-            lineNumbers: true,
-            indentUnit: 4,
-            tabSize: 4,
-            indentWithTabs: false,
-            matchBrackets: true,
-            autoCloseBrackets: true,
+        const langComp = new Compartment();
+
+        const DEFAULT_CODE = '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n';
+
+        const view = new EditorView({
+            parent: document.getElementById('code-editor'),
+            state: EditorState.create({
+                doc: DEFAULT_CODE,
+                extensions: [
+                    basicSetup,
+                    oneDark,
+                    EditorState.tabSize.of(4),
+                    indentUnit.of('    '),
+                    langComp.of(cpp()),
+                    EditorView.updateListener.of((update) => {
+                        if (update.docChanged) {
+                            clearTimeout(detectTimer);
+                            detectTimer = setTimeout(updateLanguage, 250);
+                        }
+                    }),
+                ],
+            }),
         });
+        view.focus();
+
+        function applyLanguage(lang) {
+            if (!(lang in SUPPORT)) return;
+            // load can be async for legacy modes; reconfigure once resolved
+            Promise.resolve(SUPPORT[lang]()).then((support) => {
+                if (currentLanguage !== lang) return;
+                view.dispatch({ effects: langComp.reconfigure(support) });
+            });
+        }
 
         function looksLikeCpp(code) {
             // highlight.js cannot reliably tell C and C++ apart (the C grammar
@@ -280,26 +358,34 @@
             return best;
         }
 
-        let detectTimer = null;
         function updateLanguage() {
-            const lang = detectLanguage(editor.getValue());
+            const lang = detectLanguage(view.state.doc.toString());
             const badge = document.getElementById('langBadge');
             if (lang) {
                 currentLanguage = lang;
                 badge.textContent = LANGUAGES[lang].label;
                 badge.classList.add('badge-detected');
-                editor.setOption('mode', LANGUAGES[lang].mode);
+                applyLanguage(lang);
             } else {
                 badge.textContent = '(no language detected)';
                 badge.classList.remove('badge-detected');
             }
         }
 
-        editor.on('change', () => {
-            clearTimeout(detectTimer);
-            detectTimer = setTimeout(updateLanguage, 250);
-        });
         updateLanguage();
+
+        // Minimal CodeMirror 5-style API shim (used by tests / helpers).
+        window.view = view;
+        window.editor = {
+            setValue(code) {
+                view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: code } });
+            },
+            getValue: () => view.state.doc.toString(),
+            getOption: (name) => (name === 'mode' ? CM_MODE_MIME[currentLanguage] ?? null : null),
+            setOption() { },
+            focus: () => view.focus(),
+            refresh: () => view.requestMeasure(),
+        };
 
         // Size the panels first, so the terminal measures its real dimensions.
         Split(['#code-panel', '#output-panel'], {
@@ -326,6 +412,7 @@
         const fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
         term.open(document.getElementById('terminal'));
+        window.term = term;
         fitTerminal();
         term.focus();
 
@@ -339,7 +426,7 @@
         });
 
         async function runCode() {
-            const code = editor.getValue();
+            const code = view.state.doc.toString();
             const btn = document.getElementById('runBtn');
             if (running) return;
             running = true;
@@ -374,6 +461,10 @@
                 btn.disabled = false;
             }
         }
+
+        // The run button uses an inline onclick attribute, which can only call
+        // globals; module top-level functions are not reachable from HTML.
+        window.runCode = runCode;
 
         async function poll() {
             const job = currentJob;
