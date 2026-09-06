@@ -73,25 +73,6 @@
             filter: brightness(1.5);
         }
 
-        textarea {
-            width: 100%;
-            height: 100%;
-            padding: 1rem;
-            border: 2px solid #a7a7a7;
-            border-radius: 8px;
-            background-color: #0a0a1a;
-            color: #e0e0e0;
-            font-family: 'Fira Code', 'Courier New', monospace;
-            line-height: 1.5;
-            resize: none;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        textarea:focus {
-            border-color: #00d2ff;
-        }
-
         .controls {
             display: flex;
             justify-content: center;
@@ -114,6 +95,7 @@
             position: absolute;
             right: 0px;
             top: 0px;
+            z-index: 10;
         }
 
         button:hover {
@@ -131,16 +113,44 @@
             transform: none;
         }
 
-        .error {
-            color: #ff6b6b;
+        #terminal {
+            flex: 1;
+            min-height: 0;
+            border: 2px solid #a7a7a7;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #0a0a1a;
+            padding: 0.5rem;
         }
 
-        #status {
-            text-align: center;
-            margin-top: 0.5rem;
-            font-size: 0.85rem;
-            color: #888;
-            min-height: 1.2em;
+        .terminal {
+            height: 100%;
+        }
+
+        .xterm-helper-textarea {
+            position: absolute !important;
+            left: -9999em !important;
+            top: 0 !important;
+            width: 0 !important;
+            height: 0 !important;
+            opacity: 0 !important;
+            z-index: -10 !important;
+        }
+
+        .xterm-width-cache-measure-container {
+            position: absolute !important;
+            left: -9999em !important;
+            top: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        .xterm-cursor-layer {
+            cursor: text;
+        }
+
+        .xterm {
+            cursor: text;
         }
     </style>
 </head>
@@ -152,12 +162,14 @@
             <button id="runBtn" onclick="runCode()" title="Compile and run">▶</button>
         </div>
         <div id="output-panel" class="section">
-            <textarea id="output" readonly placeholder="Output will appear here..."></textarea>
+            <div id="terminal"></div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script>
         const editor = CodeMirror(document.getElementById('code-editor'), {
             value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
@@ -171,53 +183,154 @@
             autoCloseBrackets: true,
         });
 
+        const term = new Terminal({
+            cursorBlink: true,
+            fontFamily: "'Fira Code', 'Courier New', monospace",
+            fontSize: 32,
+            theme: {
+                background: '#0a0a1a',
+                foreground: '#e0e0e0',
+                cursor: '#00ffd2'
+            }
+        });
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+        term.focus();
+
+        let currentJob = null;
+        let pollTimer = null;
+        let running = false;
+
+        term.onData(data => {
+            if (!currentJob) return;
+            fetch('/input', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_id: currentJob, data })
+            }).catch(() => { });
+        });
+
         async function runCode() {
             const code = editor.getValue();
-            const output = document.getElementById('output');
-            //    const status = document.getElementById('status');
             const btn = document.getElementById('runBtn');
-
+            if (running) return;
+            running = true;
             btn.disabled = true;
-            //  status.textContent = 'Compiling and running...';
-            output.value = '';
+            stopPolling();
+            term.reset();
+            term.focus();
 
             try {
-                const response = await fetch('/run', {
+                const response = await fetch('/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ code })
                 });
-
                 const data = await response.json();
 
-                let result = '';
-                if (data.output) result += data.output;
-                if (data.error) result += (result ? '\n' : '') + data.error;
+                if (!response.ok) {
+                    term.write(data.error || 'Request failed');
+                    term.write('\r\n');
+                    running = false;
+                    btn.disabled = false;
+                    return;
+                }
 
-                output.value = result || '(no output)';
-                output.classList.toggle('error', !!data.error && !data.output);
-                // status.textContent = data.error ? 'Error occurred' : 'Finished';
+                currentJob = data.job_id;
+                sendResize();
+                pollTimer = setInterval(poll, 100);
             } catch (err) {
-                output.value = 'Request failed: ' + err.message;
-                output.classList.add('error');
-                //   status.textContent = 'Request failed';
-            } finally {
+                term.write('Request failed: ' + err.message);
+                term.write('\r\n');
+                running = false;
                 btn.disabled = false;
             }
         }
 
-        editor.setOption('extraKeys', {
-            'Ctrl-Enter': () => runCode(),
-            'Cmd-Enter': () => runCode(),
+        async function poll() {
+            if (!currentJob) return;
+            try {
+                const response = await fetch('/output', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_id: currentJob })
+                });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    term.write(data.error || 'Poll failed');
+                    term.write('\r\n');
+                    endRun();
+                    return;
+                }
+
+                if (data.output) term.write(data.output);
+                if (data.done) endRun();
+            } catch (err) {
+                // transient error: keep polling
+            }
+        }
+
+        async function sendResize() {
+            if (!currentJob) return;
+            const cols = term.cols;
+            const rows = term.rows;
+            if (!cols || !rows) return;
+            try {
+                await fetch('/resize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ job_id: currentJob, cols, rows })
+                });
+            } catch (err) { }
+        }
+
+        function endRun() {
+            stopPolling();
+            currentJob = null;
+            running = false;
+            document.getElementById('runBtn').disabled = false;
+        }
+
+        function stopPolling() {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        function fitTerminal() {
+            try {
+                fitAddon.fit();
+            } catch (err) { }
+            sendResize();
+        }
+
+        window.addEventListener('resize', () => fitTerminal());
+
+        // Any click in the terminal panel focuses the terminal, so keystrokes
+        // (including Enter) reach the running program.
+        document.getElementById('output-panel').addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return;
+            term.focus();
         });
 
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runCode();
+            }
+        });
 
         Split(['#code-panel', '#output-panel'], {
             sizes: [50, 50],
             minSize: 150,
             cursor: 'col-resize',
             direction: 'horizontal',
-            gutterSize: 6
+            gutterSize: 6,
+            onDragEnd: fitTerminal
         });
     </script>
 </body>
