@@ -5,3 +5,10 @@ This web app shows a textbox in which the user can write code (C, C++, Rust, Jav
 The idea of the tool is to be simple, neat, to show some code that we modify interactively with students during a lecture.
 
 
+<img width="1526" height="517" alt="image" src="https://github.com/user-attachments/assets/da687b6d-3c0d-417e-ac84-c07bac2aa0f1" />
+
+
+
+## Run the tool
+
+You need to clone the repository locally and to run `python app.py`.
