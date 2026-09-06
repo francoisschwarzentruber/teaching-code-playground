@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
     <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
     <style>
         * {
@@ -171,6 +172,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script>
+        let currentJob = null;
+        let pollTimer = null;
+        let running = false;
+
         const editor = CodeMirror(document.getElementById('code-editor'), {
             value: '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n',
             mode: 'text/x-csrc',
@@ -183,6 +188,16 @@
             autoCloseBrackets: true,
         });
 
+        // Size the panels first, so the terminal measures its real dimensions.
+        Split(['#code-panel', '#output-panel'], {
+            sizes: [50, 50],
+            minSize: 150,
+            cursor: 'col-resize',
+            direction: 'horizontal',
+            gutterSize: 6,
+            onDragEnd: () => fitTerminal()
+        });
+
         const term = new Terminal({
             cursorBlink: true,
             fontFamily: "'Fira Code', 'Courier New', monospace",
@@ -190,18 +205,16 @@
             theme: {
                 background: '#0a0a1a',
                 foreground: '#e0e0e0',
-                cursor: '#00ffd2'
+                cursor: '#00ffd2',
+                selectionBackground: 'rgba(0, 210, 255, 0.28)',
+                selectionInactiveBackground: 'rgba(0, 210, 255, 0.16)'
             }
         });
         const fitAddon = new FitAddon.FitAddon();
         term.loadAddon(fitAddon);
         term.open(document.getElementById('terminal'));
-        fitAddon.fit();
+        fitTerminal();
         term.focus();
-
-        let currentJob = null;
-        let pollTimer = null;
-        let running = false;
 
         term.onData(data => {
             if (!currentJob) return;
@@ -315,6 +328,10 @@
         }
 
         window.addEventListener('resize', () => fitTerminal());
+        window.addEventListener('load', () => fitTerminal());
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(() => fitTerminal());
+        }
 
         // Any click in the terminal panel focuses the terminal, so keystrokes
         // (including Enter) reach the running program.
@@ -328,15 +345,6 @@
                 e.preventDefault();
                 runCode();
             }
-        });
-
-        Split(['#code-panel', '#output-panel'], {
-            sizes: [50, 50],
-            minSize: 150,
-            cursor: 'col-resize',
-            direction: 'horizontal',
-            gutterSize: 6,
-            onDragEnd: fitTerminal
         });
     </script>
 </body>
