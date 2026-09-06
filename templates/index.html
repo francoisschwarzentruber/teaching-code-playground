@@ -93,7 +93,7 @@
         }
 
         #runBtn {
-            position: absolute;
+            position: relative;
             right: 0px;
             top: 0px;
             z-index: 10;
@@ -176,6 +176,7 @@
             background-color: #333;
             color: #b0b0b0;
             transition: background-color 0.2s, color 0.2s;
+            width: fit-content;
         }
 
         .badge-detected {
@@ -187,29 +188,39 @@
 
 <body>
     <header id="topbar">
-        <span id="langBadge" class="badge">(no language detected)</span>
+
     </header>
     <div class="container">
         <div id="code-panel" class="section grow">
+            <span id="langBadge" class="badge">(no language detected)</span>
             <div id="code-editor"></div>
-            <button id="runBtn" onclick="runCode()" title="Run">▶</button>
         </div>
         <div id="output-panel" class="section">
+            <button id="runBtn" onclick="runCode()" title="Run">▶</button>
             <div id="terminal"></div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/rust/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/haskell/haskell.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/scheme/scheme.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script>
-        // Supported languages, keyed by the id highlight.js returns.
+        // Supported languages, keyed by the id sent to the backend.
         // To add a new language, add an entry here (matching the app.py LANGUAGES map).
         const LANGUAGES = {
             c: { label: 'C', mode: 'text/x-csrc' },
+            cpp: { label: 'C++', mode: 'text/x-c++src' },
+            rust: { label: 'Rust', mode: 'text/x-rust' },
+            java: { label: 'Java', mode: 'text/x-java' },
+            lisp: { label: 'Lisp', mode: 'text/x-scheme' },
+            haskell: { label: 'Haskell', mode: 'text/x-haskell' },
             python: { label: 'Python', mode: 'text/x-python' },
         };
         let currentLanguage = 'c';
@@ -229,13 +240,41 @@
             autoCloseBrackets: true,
         });
 
+        function looksLikeCpp(code) {
+            // highlight.js cannot reliably tell C and C++ apart (the C grammar
+            // inherits from C++), so we rely on explicit C++ markers instead.
+            return [
+                /#include\s*<iostream>/i,
+                /#include\s*<vector>/i,
+                /#include\s*<string>/i,
+                /#include\s*<algorithm>/i,
+                /using\s+namespace\b/,
+                /template\s*<\s*(?:class|typename)\b/,
+                /\bstd::(?:cout|cin|cerr|endl|vector|string|map|queue|stack|list)\b/,
+                /\b(?:public|private|protected)\s*:/,
+                /\bcout\s*<</,
+                /\bcin\s*>>/,
+            ].some((re) => re.test(code));
+        }
+
+        function looksLikeLisp(code) {
+            return /\((?:define|lambda|set!|display|newline|cond|let|let\*|letrec|begin|if|cons|car|cdr)\b/.test(code);
+        }
+
+        function looksLikeHaskell(code) {
+            return /^\s*main\s*=|^\s*main\s*::|\b(?:putStrLn|getLine|putStr)\b/.test(code);
+        }
+
         function detectLanguage(code) {
-            // Note: hljs.highlightAuto excludes 'c' from candidates (the C
-            // grammar opts out of autodetection), so we score each supported
-            // language ourselves and keep the best matching one.
+            // C++, Lisp and Haskell are detected by explicit markers (their
+            // highlight.js relevance scores are too weak/unreliable to tell
+            // them apart from C / Python). The rest use hljs relevance.
+            if (looksLikeCpp(code)) return 'cpp';
+            if (looksLikeLisp(code)) return 'lisp';
+            if (looksLikeHaskell(code)) return 'haskell';
             let best = null;
             let bestRelevance = 0;
-            for (const lang of Object.keys(LANGUAGES)) {
+            for (const lang of ['c', 'python', 'rust', 'java']) {
                 try {
                     const res = hljs.highlight(lang, code, { ignoreIllegals: true });
                     if (res.relevance > bestRelevance) {
@@ -284,7 +323,7 @@
             fontSize: 32,
             theme: {
                 background: '#0a0a1a',
-                foreground: '#e0e0e0',
+                foreground: '#c0ffc0',
                 cursor: '#00ffd2',
                 selectionBackground: 'rgba(0, 210, 255, 0.28)',
                 selectionInactiveBackground: 'rgba(0, 210, 255, 0.16)'

@@ -1,6 +1,7 @@
 import fcntl
 import os
 import pty
+import re
 import select
 import shutil
 import signal
@@ -28,6 +29,31 @@ LANGUAGES = {
         "compile": ["gcc", "{source}", "-o", "{binary}", "-lm"],
         "run": ["{binary}"],
     },
+    "cpp": {
+        "ext": ".cpp",
+        "compile": ["g++", "-std=c++17", "{source}", "-o", "{binary}"],
+        "run": ["{binary}"],
+    },
+    "rust": {
+        "ext": ".rs",
+        "compile": ["rustc", "{source}", "-o", "{binary}"],
+        "run": ["{binary}"],
+    },
+    "java": {
+        "ext": ".java",
+        "compile": ["javac", "{source}", "-d", "{workdir}"],
+        "run": ["java", "-cp", "{workdir}", "{main_class}"],
+    },
+    "lisp": {
+        "ext": ".scm",
+        "compile": None,
+        "run": ["guile", "--no-auto-compile", "{source}"],
+    },
+    "haskell": {
+        "ext": ".hs",
+        "compile": None,
+        "run": ["runghc", "{source}"],
+    },
     "python": {
         "ext": ".py",
         "compile": None,
@@ -39,7 +65,18 @@ sessions = {}
 sessions_lock = threading.Lock()
 
 
-def _start_session(command, work_dir, cleanup_files=None):
+def _java_main_class(code, language):
+    """Return the name of the public class to run for a Java program."""
+    if language != "java":
+        return ""
+    m = re.search(r"\bpublic\s+class\s+(\w+)", code)
+    if m:
+        return m.group(1)
+    m = re.search(r"\bclass\s+(\w+)", code)
+    return m.group(1) if m else "Main"
+
+
+def _start_session(command, work_dir):
     """Launch `command` inside a pseudo-terminal and return a session dict."""
     master_fd, slave_fd = pty.openpty()
 
@@ -106,16 +143,9 @@ def _start_session(command, work_dir, cleanup_files=None):
         reader_thread.join(timeout=2)
         with session["lock"]:
             session["done"] = True
-        if cleanup_files:
-            for f in cleanup_files:
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
-        try:
-            os.rmdir(work_dir)
-        except OSError:
-            pass
+        # Remove the whole work directory (source, binary, and any .class
+        # files) once the program has finished running.
+        shutil.rmtree(work_dir, ignore_errors=True)
 
     threading.Thread(target=waiter, daemon=True).start()
     return session
@@ -140,18 +170,22 @@ def start_session():
 
     work_dir = tempfile.mkdtemp()
     job_id = uuid.uuid4().hex
-    source_file = os.path.join(work_dir, job_id + lang["ext"])
+    main_class = _java_main_class(code, language)
+    source_file = os.path.join(work_dir, f"{main_class}.java" if language == "java" else job_id + lang["ext"])
     binary_file = os.path.join(work_dir, job_id)
-    cleanup_files = [source_file]
+    placeholders = {
+        "source": source_file,
+        "binary": binary_file,
+        "workdir": work_dir,
+        "main_class": main_class,
+    }
 
     try:
         with open(source_file, "w") as f:
             f.write(code)
 
         if lang["compile"]:
-            compile_cmd = [
-                c.format(source=source_file, binary=binary_file) for c in lang["compile"]
-            ]
+            compile_cmd = [c.format(**placeholders) for c in lang["compile"]]
             compile_result = subprocess.run(
                 compile_cmd,
                 capture_output=True,
@@ -161,10 +195,9 @@ def start_session():
             if compile_result.returncode != 0:
                 shutil.rmtree(work_dir, ignore_errors=True)
                 return jsonify({"error": compile_result.stderr}), 400
-            cleanup_files.append(binary_file)
 
-        run_cmd = [c.format(source=source_file, binary=binary_file) for c in lang["run"]]
-        session = _start_session(run_cmd, work_dir, cleanup_files)
+        run_cmd = [c.format(**placeholders) for c in lang["run"]]
+        session = _start_session(run_cmd, work_dir)
         session["work_dir"] = work_dir
         session["source_file"] = source_file
 
