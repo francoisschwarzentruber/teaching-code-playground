@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C in Browser</title>
+    <title>Cinbrowser</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
@@ -153,14 +153,46 @@
         .xterm {
             cursor: text;
         }
+
+        #topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 0.25rem 0.75rem;
+        }
+
+        #appTitle {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #00ffd2;
+            letter-spacing: 0.05em;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            background-color: #333;
+            color: #b0b0b0;
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        .badge-detected {
+            background-color: #00ffd2;
+            color: #1a1a2e;
+        }
     </style>
 </head>
 
 <body>
+    <header id="topbar">
+        <span id="langBadge" class="badge">(no language detected)</span>
+    </header>
     <div class="container">
         <div id="code-panel" class="section grow">
             <div id="code-editor"></div>
-            <button id="runBtn" onclick="runCode()" title="Compile and run">▶</button>
+            <button id="runBtn" onclick="runCode()" title="Run">▶</button>
         </div>
         <div id="output-panel" class="section">
             <div id="terminal"></div>
@@ -169,9 +201,18 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script>
+        // Supported languages, keyed by the id highlight.js returns.
+        // To add a new language, add an entry here (matching the app.py LANGUAGES map).
+        const LANGUAGES = {
+            c: { label: 'C', mode: 'text/x-csrc' },
+            python: { label: 'Python', mode: 'text/x-python' },
+        };
+        let currentLanguage = 'c';
         let currentJob = null;
         let pollTimer = null;
         let running = false;
@@ -187,6 +228,45 @@
             matchBrackets: true,
             autoCloseBrackets: true,
         });
+
+        function detectLanguage(code) {
+            // Note: hljs.highlightAuto excludes 'c' from candidates (the C
+            // grammar opts out of autodetection), so we score each supported
+            // language ourselves and keep the best matching one.
+            let best = null;
+            let bestRelevance = 0;
+            for (const lang of Object.keys(LANGUAGES)) {
+                try {
+                    const res = hljs.highlight(lang, code, { ignoreIllegals: true });
+                    if (res.relevance > bestRelevance) {
+                        bestRelevance = res.relevance;
+                        best = lang;
+                    }
+                } catch (err) { }
+            }
+            return best;
+        }
+
+        let detectTimer = null;
+        function updateLanguage() {
+            const lang = detectLanguage(editor.getValue());
+            const badge = document.getElementById('langBadge');
+            if (lang) {
+                currentLanguage = lang;
+                badge.textContent = LANGUAGES[lang].label;
+                badge.classList.add('badge-detected');
+                editor.setOption('mode', LANGUAGES[lang].mode);
+            } else {
+                badge.textContent = '(no language detected)';
+                badge.classList.remove('badge-detected');
+            }
+        }
+
+        editor.on('change', () => {
+            clearTimeout(detectTimer);
+            detectTimer = setTimeout(updateLanguage, 250);
+        });
+        updateLanguage();
 
         // Size the panels first, so the terminal measures its real dimensions.
         Split(['#code-panel', '#output-panel'], {
@@ -239,7 +319,7 @@
                 const response = await fetch('/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
+                    body: JSON.stringify({ code, language: currentLanguage })
                 });
                 const data = await response.json();
 

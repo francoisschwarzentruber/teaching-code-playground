@@ -2,6 +2,7 @@ import fcntl
 import os
 import pty
 import select
+import shutil
 import signal
 import struct
 import subprocess
@@ -16,12 +17,30 @@ app = Flask(__name__)
 
 COMPILE_TIMEOUT = 10
 
+# Registry of supported languages. To add a new language, add an entry here
+# (same key as the frontend LANGUAGES map).
+#   ext      -> source file extension
+#   compile  -> optional compile command ({source} / {binary} placeholders)
+#   run      -> run command ({source} / {binary} placeholders)
+LANGUAGES = {
+    "c": {
+        "ext": ".c",
+        "compile": ["gcc", "{source}", "-o", "{binary}", "-lm"],
+        "run": ["{binary}"],
+    },
+    "python": {
+        "ext": ".py",
+        "compile": None,
+        "run": ["python3", "{source}"],
+    },
+}
+
 sessions = {}
 sessions_lock = threading.Lock()
 
 
-def _start_session(binary_file, work_dir):
-    """Launch the binary inside a pseudo-terminal and return a session dict."""
+def _start_session(command, work_dir, cleanup_files=None):
+    """Launch `command` inside a pseudo-terminal and return a session dict."""
     master_fd, slave_fd = pty.openpty()
 
     def _child_setup():
@@ -36,7 +55,7 @@ def _start_session(binary_file, work_dir):
         signal.signal(signal.SIGTSTP, signal.SIG_DFL)
 
     proc = subprocess.Popen(
-        [binary_file],
+        command,
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
@@ -87,6 +106,16 @@ def _start_session(binary_file, work_dir):
         reader_thread.join(timeout=2)
         with session["lock"]:
             session["done"] = True
+        if cleanup_files:
+            for f in cleanup_files:
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+        try:
+            os.rmdir(work_dir)
+        except OSError:
+            pass
 
     threading.Thread(target=waiter, daemon=True).start()
     return session
@@ -101,33 +130,43 @@ def index():
 def start_session():
     data = request.get_json()
     code = data.get("code", "")
+    language = data.get("language", "c")
 
+    if language not in LANGUAGES:
+        return jsonify({"error": f"Unsupported language: {language}"}), 400
+    lang = LANGUAGES[language]
     if not code.strip():
         return jsonify({"error": "No code provided."}), 400
 
     work_dir = tempfile.mkdtemp()
     job_id = uuid.uuid4().hex
-    source_file = os.path.join(work_dir, f"{job_id}.c")
+    source_file = os.path.join(work_dir, job_id + lang["ext"])
     binary_file = os.path.join(work_dir, job_id)
+    cleanup_files = [source_file]
 
     try:
         with open(source_file, "w") as f:
             f.write(code)
 
-        compile_result = subprocess.run(
-            ["gcc", source_file, "-o", binary_file, "-lm"],
-            capture_output=True,
-            text=True,
-            timeout=COMPILE_TIMEOUT,
-        )
+        if lang["compile"]:
+            compile_cmd = [
+                c.format(source=source_file, binary=binary_file) for c in lang["compile"]
+            ]
+            compile_result = subprocess.run(
+                compile_cmd,
+                capture_output=True,
+                text=True,
+                timeout=COMPILE_TIMEOUT,
+            )
+            if compile_result.returncode != 0:
+                shutil.rmtree(work_dir, ignore_errors=True)
+                return jsonify({"error": compile_result.stderr}), 400
+            cleanup_files.append(binary_file)
 
-        if compile_result.returncode != 0:
-            return jsonify({"error": compile_result.stderr}), 400
-
-        session = _start_session(binary_file, work_dir)
+        run_cmd = [c.format(source=source_file, binary=binary_file) for c in lang["run"]]
+        session = _start_session(run_cmd, work_dir, cleanup_files)
         session["work_dir"] = work_dir
         session["source_file"] = source_file
-        session["binary_file"] = binary_file
 
         with sessions_lock:
             sessions[job_id] = session
@@ -135,19 +174,11 @@ def start_session():
         return jsonify({"job_id": job_id})
 
     except subprocess.TimeoutExpired:
+        shutil.rmtree(work_dir, ignore_errors=True)
         return jsonify({"error": "Compilation timed out."}), 400
     except Exception as e:
+        shutil.rmtree(work_dir, ignore_errors=True)
         return jsonify({"error": str(e)}), 500
-    finally:
-        for f in [source_file, binary_file]:
-            try:
-                os.remove(f)
-            except OSError:
-                pass
-        try:
-            os.rmdir(work_dir)
-        except OSError:
-            pass
 
 
 @app.route("/output", methods=["POST"])
