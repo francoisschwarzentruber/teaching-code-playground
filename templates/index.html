@@ -282,7 +282,7 @@
 
         const DEFAULT_CODE = '#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}\n';
 
-        const view = new EditorView({
+        const editorView = new EditorView({
             parent: document.getElementById('code-editor'),
             state: EditorState.create({
                 doc: DEFAULT_CODE,
@@ -301,14 +301,14 @@
                 ],
             }),
         });
-        view.focus();
+        editorView.focus();
 
         function applyLanguage(lang) {
             if (!(lang in SUPPORT)) return;
             // load can be async for legacy modes; reconfigure once resolved
             Promise.resolve(SUPPORT[lang]()).then((support) => {
                 if (currentLanguage !== lang) return;
-                view.dispatch({ effects: langComp.reconfigure(support) });
+                editorView.dispatch({ effects: langComp.reconfigure(support) });
             });
         }
 
@@ -337,6 +337,10 @@
             return /^\s*main\s*=|^\s*main\s*::|\b(?:putStrLn|getLine|putStr)\b/.test(code);
         }
 
+
+        /**
+         * @returns the string of the language (key of LANGUAGES) 
+         */
         function detectLanguage(code) {
             // C++, Lisp and Haskell are detected by explicit markers (their
             // highlight.js relevance scores are too weak/unreliable to tell
@@ -359,7 +363,7 @@
         }
 
         function updateLanguage() {
-            const lang = detectLanguage(view.state.doc.toString());
+            const lang = detectLanguage(editorView.state.doc.toString());
             const badge = document.getElementById('langBadge');
             if (lang) {
                 currentLanguage = lang;
@@ -375,16 +379,16 @@
         updateLanguage();
 
         // Minimal CodeMirror 5-style API shim (used by tests / helpers).
-        window.view = view;
+        window.view = editorView;
         window.editor = {
             setValue(code) {
-                view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: code } });
+                editorView.dispatch({ changes: { from: 0, to: editorView.state.doc.length, insert: code } });
             },
-            getValue: () => view.state.doc.toString(),
+            getValue: () => editorView.state.doc.toString(),
             getOption: (name) => (name === 'mode' ? CM_MODE_MIME[currentLanguage] ?? null : null),
             setOption() { },
-            focus: () => view.focus(),
-            refresh: () => view.requestMeasure(),
+            focus: () => editorView.focus(),
+            refresh: () => editorView.requestMeasure(),
         };
 
         // Size the panels first, so the terminal measures its real dimensions.
@@ -426,11 +430,11 @@
         });
 
         async function runCode() {
-            const code = view.state.doc.toString();
-            const btn = document.getElementById('runBtn');
+            const code = editorView.state.doc.toString();
+            const runBtn = document.getElementById('runBtn');
             if (running) return;
             running = true;
-            btn.disabled = true;
+            runBtn.disabled = true;
             stopPolling();
             term.reset();
             term.focus();
@@ -447,7 +451,7 @@
                     term.write(data.error || 'Request failed');
                     term.write('\r\n');
                     running = false;
-                    btn.disabled = false;
+                    runBtn.disabled = false;
                     return;
                 }
 
@@ -458,7 +462,7 @@
                 term.write('Request failed: ' + err.message);
                 term.write('\r\n');
                 running = false;
-                btn.disabled = false;
+                runBtn.disabled = false;
             }
         }
 
@@ -495,6 +499,9 @@
             }
         }
 
+        /**
+         * @description inform the server that the terminal has been resized
+         */
         async function sendResize() {
             const job = currentJob;
             if (!job) return;
