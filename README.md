@@ -8,6 +8,12 @@ The idea of the tool is to be simple, neat, to show some code that we modify int
 <img width="1526" height="517" alt="image" src="https://github.com/user-attachments/assets/da687b6d-3c0d-417e-ac84-c07bac2aa0f1" />
 
 
+## Features
+
+- Run easily small terminal programs
+- Language supported: C, C++, Rust, Java, Lisp, Haskell
+- Detect the language of some code
+
 
 ## Run the tool
 
