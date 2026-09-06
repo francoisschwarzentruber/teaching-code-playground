@@ -36,11 +36,15 @@
             flex-direction: row;
             width: 100%;
             min-height: 0;
+            overflow: hidden;
         }
 
         .section {
             margin-bottom: 0;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         .section.grow {
@@ -90,6 +94,7 @@
             font-weight: 700;
             cursor: pointer;
             transition: background-color 0.2s, transform 0.1s;
+            width: fit-content;
         }
 
 
@@ -148,12 +153,6 @@
             cursor: text;
         }
 
-        #topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 0.25rem 0.75rem;
-        }
 
         #appTitle {
             font-size: 0.9rem;
@@ -181,9 +180,6 @@
 </head>
 
 <body>
-    <header id="topbar">
-
-    </header>
     <div class="container">
         <div id="code-panel" class="section grow">
             <span id="langBadge" class="badge">(no language detected)</span>
@@ -444,6 +440,9 @@
         window.addEventListener('load', () => fitTerminal());
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(() => fitTerminal());
+        }
+        if (window.ResizeObserver) {
+            new ResizeObserver(fitTerminal).observe(document.getElementById('output-panel'));
         }
 
         // Any click in the terminal panel focuses the terminal, so keystrokes
