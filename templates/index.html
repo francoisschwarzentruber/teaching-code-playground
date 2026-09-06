@@ -116,7 +116,6 @@
         #terminal {
             flex: 1;
             min-height: 0;
-            border: 2px solid #a7a7a7;
             border-radius: 8px;
             overflow: hidden;
             background-color: #0a0a1a;
@@ -147,6 +146,11 @@
 
         .xterm-cursor-layer {
             cursor: text;
+        }
+
+        .xterm-screen {
+            filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.8));
+            box-shadow: inset 0 0 60px rgba(251, 191, 36, 0.3)
         }
 
         .xterm {
