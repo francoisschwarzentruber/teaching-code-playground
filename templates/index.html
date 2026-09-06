@@ -250,14 +250,19 @@
         }
 
         async function poll() {
-            if (!currentJob) return;
+            const job = currentJob;
+            if (!job) return;
             try {
                 const response = await fetch('/output', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ job_id: currentJob })
+                    body: JSON.stringify({ job_id: job })
                 });
                 const data = await response.json();
+
+                // Ignore stale responses from a previous run (the user may have
+                // already started a new program while this request was in flight).
+                if (currentJob !== job) return;
 
                 if (!response.ok) {
                     term.write(data.error || 'Poll failed');
@@ -274,7 +279,8 @@
         }
 
         async function sendResize() {
-            if (!currentJob) return;
+            const job = currentJob;
+            if (!job) return;
             const cols = term.cols;
             const rows = term.rows;
             if (!cols || !rows) return;
@@ -282,7 +288,7 @@
                 await fetch('/resize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ job_id: currentJob, cols, rows })
+                    body: JSON.stringify({ job_id: job, cols, rows })
                 });
             } catch (err) { }
         }
