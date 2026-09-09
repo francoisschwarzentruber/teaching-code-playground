@@ -138,7 +138,7 @@
             min-height: 0;
             border-radius: 8px;
             overflow: hidden;
-            padding: 0.5rem;
+            padding: 0;
         }
 
         .terminal {
@@ -275,6 +275,7 @@
         let currentJob = null;
         let pollTimer = null;
         let running = false;
+        let fitRaf = null;
 
         const langComp = new Compartment();
 
@@ -529,11 +530,24 @@
             }
         }
 
+        // Fitting on the next animation frames lets xterm.js re-measure its
+        // character cell after a browser zoom (devicePixelRatio) change, so
+        // the terminal tiles its container exactly and glyphs are never
+        // clipped. The second pass picks up any asynchronously loaded re-measured size.
         function fitTerminal() {
-            try {
-                fitAddon.fit();
-            } catch (err) { }
-            sendResize();
+            if (fitRaf !== null) cancelAnimationFrame(fitRaf);
+            fitRaf = requestAnimationFrame(() => {
+                fitRaf = null;
+                try {
+                    fitAddon.fit();
+                } catch (err) { }
+                requestAnimationFrame(() => {
+                    try {
+                        fitAddon.fit();
+                    } catch (err) { }
+                    sendResize();
+                });
+            });
         }
 
         window.addEventListener('resize', () => fitTerminal());
@@ -543,6 +557,23 @@
         }
         if (window.ResizeObserver) {
             new ResizeObserver(fitTerminal).observe(document.getElementById('output-panel'));
+        }
+        if (window.matchMedia) {
+            // Browser zoom (Ctrl + / Ctrl -) changes devicePixelRatio; keep the
+            // terminal in sync even if no window resize event is emitted.
+            // Re-install the query after each change so further zoom steps
+            // (e.g. 125% -> 150%) are still detected.
+            let dprMedia = null;
+            const onDprChange = () => {
+                installDprListener();
+                fitTerminal();
+            };
+            function installDprListener() {
+                if (dprMedia) dprMedia.removeEventListener('change', onDprChange);
+                dprMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+                dprMedia.addEventListener('change', onDprChange);
+            }
+            installDprListener();
         }
 
         // Any click in the terminal panel focuses the terminal, so keystrokes
